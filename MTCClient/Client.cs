@@ -76,6 +76,8 @@ namespace MTConnectSharp
 		/// </summary>
 		private Int64 lastSequence;
 
+		private Boolean probeCompleted = false;
+
 		/// <summary>
 		/// Initializes a new Client 
 		/// </summary>
@@ -106,7 +108,7 @@ namespace MTConnectSharp
 
 			GetCurrentState();
 
-			streamingTimer = new Timer(2000);
+			streamingTimer = new Timer(UpdateInterval);
 			streamingTimer.Elapsed += streamingTimer_Elapsed;
 			streamingTimer.Start();
 		}
@@ -124,6 +126,11 @@ namespace MTConnectSharp
 		/// </summary>
 		public void GetCurrentState()
 		{
+			if (!probeCompleted)
+			{
+				throw new InvalidOperationException("Cannot get DataItem values. Agent has not been probed yet.");
+			}
+
 			var request = new RestRequest();
 			request.Resource = "current";
 			restClient.ExecuteAsync(request, (a) => parseStream(a));
@@ -164,7 +171,8 @@ namespace MTConnectSharp
 			}
 			FillDataItemRefList();
 
-			ProbeCompletedHandler();
+			probeCompleted = true;
+			ProbeCompletedHandler();			
 		}
 
 		/// <summary>
