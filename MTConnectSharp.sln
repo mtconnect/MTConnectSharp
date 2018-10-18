@@ -1,11 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.31101.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.28010.2046
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MTConnectSharp", "MTCClient\MTConnectSharp.csproj", "{130CF922-9476-4459-952D-69B519B3822C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MTConnectSharp", "MTCClient\MTConnectSharp.csproj", "{130CF922-9476-4459-952D-69B519B3822C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExampleConsoleApp", "TestConsoleApp\ExampleConsoleApp.csproj", "{5D2099EA-FE35-4653-8978-5056626934CC}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ExampleConsoleApp", "TestConsoleApp\ExampleConsoleApp.csproj", "{5D2099EA-FE35-4653-8978-5056626934CC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{F0D9D817-054E-4CDE-8D1A-C60F9D80A835}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +29,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C4E245DE-9EA3-45DA-B7E0-0B77136E5D74}
 	EndGlobalSection
 EndGlobal
