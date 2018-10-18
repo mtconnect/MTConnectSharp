@@ -1,60 +1,50 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace MTConnectSharp
 {
-	/// <summary>
-	/// Represents a DataItem in the MTConnect probe response
-	/// </summary>
-	[ComVisible(true)]
-	[ClassInterface(ClassInterfaceType.None)]
-	[ComSourceInterfaces(typeof(IDataItemEvents))]
-	public class DataItem : MTCItemBase, IDataItem
+   /// <summary>
+   /// Represents a DataItem in the MTConnect probe response
+   /// </summary>
+   public class DataItem : MTCItemBase, IDataItem
 	{
-		/// <summary>
-		/// A new DataItemSample was added to the value buffer
-		/// </summary>
-		public event EventHandler SampleAdded;
-
 		/// <summary>
 		/// DataItemSample collection as a Queue for correct circular buffer behavior
 		/// </summary>
-		private Queue<DataItemSample> dataItemSamples = new Queue<DataItemSample>();
+		private ObservableCollection<DataItemSample> _dataItemSamples = new ObservableCollection<DataItemSample>();
 
 		/// <summary>
 		/// Value of the category attribute
 		/// </summary>
-		public String Category { get; private set; }
+		public string Category { get; set; }
 
 		/// <summary>
 		/// Value of the type attribute
 		/// </summary>
-		public String Type { get; private set; }
+		public string Type { get; set; }
 
 		/// <summary>
 		/// Value of the subType attribute
 		/// </summary>
-		public String SubType { get; private set; }
+		public string SubType { get; set; }
 
 		/// <summary>
 		/// Value of the units attribute
 		/// </summary>
-		public String Units { get; private set; }
+		public string Units { get; set; }
 
 		/// <summary>
 		/// Value of the nativeUnits attribute
 		/// </summary>
-		public String NativeUnits { get; private set; }
+		public string NativeUnits { get; set; }
 
 		/// <summary>
 		/// The maximum number of samples to keep in the value buffer
 		/// </summary>
-		public Int32 BufferSize { get; set; }
+		public int BufferSize { get; set; }
 
 		/// <summary>
 		/// The value immediately before the value
@@ -63,11 +53,7 @@ namespace MTConnectSharp
 		{
 			get
 			{
-				if (dataItemSamples.Count < 2)
-				{
-					return null;
-				}
-				return dataItemSamples.ToList()[dataItemSamples.Count - 2];
+            return _dataItemSamples.Skip(Math.Max(1, _dataItemSamples.Count - 1)).FirstOrDefault();
 			}
 		}
 
@@ -78,19 +64,17 @@ namespace MTConnectSharp
 		{
 			get
 			{
-				return dataItemSamples.Last();
+				return _dataItemSamples.Last();
 			}
 		}
 
 		/// <summary>
 		/// Every value in the buffer
 		/// </summary>
-		public DataItemSample[] SampleHistory
+		public ReadOnlyObservableCollection<DataItemSample> SampleHistory
 		{
-			get
-			{
-				return dataItemSamples.ToArray();
-			}
+         get;
+         private set;
 		}
 
 		/// <summary>
@@ -99,8 +83,10 @@ namespace MTConnectSharp
 		/// <param name="xmlDataItem">The XElement which defines the DataItem</param>
 		internal DataItem(XElement xmlDataItem)
 		{
-			BufferSize = 100;
-			id = ParseUtility.GetAttribute(xmlDataItem, "id");
+         SampleHistory = new ReadOnlyObservableCollection<DataItemSample>(_dataItemSamples);
+
+         BufferSize = 100;
+			Id = ParseUtility.GetAttribute(xmlDataItem, "id");
 			Name = ParseUtility.GetAttribute(xmlDataItem, "name");
 			Category = ParseUtility.GetAttribute(xmlDataItem, "category");
 			Type = ParseUtility.GetAttribute(xmlDataItem, "type");
@@ -115,21 +101,8 @@ namespace MTConnectSharp
 		/// <param name="newSample">The new sample to add</param>
 		internal void AddSample(DataItemSample newSample)
 		{
-			dataItemSamples.Enqueue(newSample);
-			while(dataItemSamples.Count > BufferSize)
-			{
-				dataItemSamples.Dequeue();
-			}
-			sampleAddedHandler();
-		}
-
-		private void sampleAddedHandler()
-		{
-			var args = new EventArgs();
-			if(SampleAdded != null)
-			{
-				SampleAdded(this, args);
-			}
+			_dataItemSamples.Add(newSample);
+         _dataItemSamples.RemoveRange(0, Math.Max(0, _dataItemSamples.Count - BufferSize));
 		}
 	}
 }

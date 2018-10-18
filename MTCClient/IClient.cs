@@ -1,16 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
+using System.Collections.ObjectModel;
+
 namespace MTConnectSharp
 {
-	public interface IMTConnectClient
+   public interface IMTConnectClient
 	{
 		string AgentUri { get; set; }
 		void Probe();
 		void StartStreaming();
 		void StopStreaming();
 		void GetCurrentState();
-		Device[] Devices { get; }
-		int UpdateInterval { get; set; }
+		ReadOnlyObservableCollection<Device> Devices { get; }
+		TimeSpan UpdateInterval { get; set; }
 	}
 }
