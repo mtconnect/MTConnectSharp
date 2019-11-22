@@ -1,99 +1,76 @@
-﻿using System;
+﻿using RestSharp;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using RestSharp;
-using System.Xml.Linq;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Timers;
-using System.Runtime.InteropServices;
+using System.Xml.Linq;
 
 namespace MTConnectSharp
 {
-	/// <summary>
-	/// Connects to a single agent and streams data from it.
-	/// </summary>
-	[ComVisible(true)]
-	[ClassInterface(ClassInterfaceType.None)]
-	[ComSourceInterfaces(typeof(IClientEvents))]
-    public class MTConnectClient : IMTConnectClient, IDisposable
+   /// <summary>
+   /// Connects to a single agent and streams data from it.
+   /// </summary>
+   public class MTConnectClient : IMTConnectClient, IDisposable
     {
 		/// <summary>
 		/// The probe response has been recieved and parsed
 		/// </summary>
 		public event EventHandler ProbeCompleted;
 
-		/// <summary>
-		/// All data items in a current or sample response have been parsed
-		/// </summary>
-		public event EventHandler DataItemsChanged;
-
-		/// <summary>
-		/// The value of a data item changed
-		/// </summary>
-		public event EventHandler<DataItemChangedEventArgs> DataItemChanged;
-
-		/// <summary>
-		/// The base uri of the agent
-		/// </summary>
-		public string AgentUri { get; set; }
+      /// <summary>
+      /// The base uri of the agent
+      /// </summary>
+      public string AgentUri { get; set; }
 
 		/// <summary>
 		/// Time in milliseconds between sample queries when simulating a streaming connection
 		/// </summary>
-		public Int32 UpdateInterval { get; set; }
+		public TimeSpan UpdateInterval { get; set; }
 
 		/// <summary>
 		/// Devices on the connected agent
 		/// </summary>
-		public Device[] Devices
+		public ReadOnlyObservableCollection<Device> Devices
 		{
-			get
-			{
-				return devices.ToArray<Device>();
-			}
+         get;
+         private set;
 		}
-		private List<Device> devices;
+		private ObservableCollection<Device> _devices;
 
 		/// <summary>
 		/// Dictionary Reference to all data items by id for better performance when streaming
 		/// </summary>
-		private Dictionary<String, DataItem> dataItemsRef = new Dictionary<string,DataItem>(); 
+		private Dictionary<string, DataItem> _dataItemsDictionary = new Dictionary<string,DataItem>(); 
 		
 		/// <summary>
 		/// RestSharp RestClient
 		/// </summary>
-		private RestClient restClient;
+		private RestClient _restClient;
 		
 		/// <summary>
 		/// Not actually parsing multipart stream - this timer fires sample queries to simulate streaming
 		/// </summary>
-		private Timer streamingTimer;
+		private Timer _streamingTimer;
 
 		/// <summary>
 		/// Last sequence number read from current or sample
 		/// </summary>
-		private Int64 lastSequence;
+		private long _lastSequence;
 
-		private Boolean probeCompleted = false;
+      private bool _probeStarted = false;
+      private bool _probeCompleted = false;
 
 		/// <summary>
 		/// Initializes a new Client 
 		/// </summary>
 		public MTConnectClient()
 		{
-			UpdateInterval = 2000;
-		}
+			UpdateInterval = TimeSpan.FromMilliseconds(2000);
 
-		/// <summary>
-		/// Initializes a new Client and connects to the agent
-		/// </summary>
-		/// <param name="agentUri">The base uri of the agent</param>
-		public MTConnectClient(String agentUri) : this()
-		{
-			AgentUri = agentUri;
-			Probe();
+         _devices = new ObservableCollection<Device>();
+         Devices = new ReadOnlyObservableCollection<Device>(_devices);
 		}
 
 		/// <summary>
@@ -101,16 +78,16 @@ namespace MTConnectSharp
 		/// </summary>
 		public void StartStreaming()
 		{
-			if (streamingTimer != null && streamingTimer.Enabled)
+			if (_streamingTimer?.Enabled == true)
 			{
 				return;
 			}
 
 			GetCurrentState();
 
-			streamingTimer = new Timer(UpdateInterval);
-			streamingTimer.Elapsed += streamingTimer_Elapsed;
-			streamingTimer.Start();
+			_streamingTimer = new Timer(UpdateInterval.TotalMilliseconds);
+			_streamingTimer.Elapsed += StreamingTimerElapsed;
+			_streamingTimer.Start();
 		}
 
 		/// <summary>
@@ -118,7 +95,7 @@ namespace MTConnectSharp
 		/// </summary>
 		public void StopStreaming()
 		{
-			streamingTimer.Stop();
+			_streamingTimer.Stop();
 		}
 
 		/// <summary>
@@ -126,14 +103,16 @@ namespace MTConnectSharp
 		/// </summary>
 		public void GetCurrentState()
 		{
-			if (!probeCompleted)
+			if (!_probeCompleted)
 			{
 				throw new InvalidOperationException("Cannot get DataItem values. Agent has not been probed yet.");
 			}
 
-			var request = new RestRequest();
-			request.Resource = "current";
-			restClient.ExecuteAsync(request, (a) => parseStream(a));
+         var request = new RestRequest
+         {
+            Resource = "current"
+         };
+         _restClient.ExecuteAsync(request, (a) => ParseStream(a));
 		}
 
 		/// <summary>
@@ -141,147 +120,134 @@ namespace MTConnectSharp
 		/// </summary>
 		public void Probe()
 		{
-			restClient = new RestClient();
-			restClient.BaseUrl = new Uri(AgentUri);
+         if (_probeStarted && !_probeCompleted)
+         {
+            throw new InvalidOperationException("Cannot start a new Probe when one is still running.");
+         }
 
-			var request = new RestRequest();
-			request.Resource = "probe";
+         _restClient = new RestClient
+         {
+            BaseUrl = new Uri(AgentUri)
+         };
 
-			try
+         var request = new RestRequest
+         {
+            Resource = "probe"
+         };
+
+         try
 			{
-				restClient.ExecuteAsync(request, (r) => parseProbeResponse(r));
+            _probeStarted = true;
+				_restClient.ExecuteAsync(request, r => ParseProbeResponse(r));
 			}
 			catch (Exception ex)
 			{
-				throw new Exception("Probe request failed.\nAgent Uri: " + AgentUri, ex);
-			}
-		}
+            _probeStarted = false;
+            throw new Exception("Probe request failed.\nAgent Uri: " + AgentUri, ex);
+         }
+      }
 
 		/// <summary>
 		/// Parses IRestResponse from a probe command into a Device collection
 		/// </summary>
 		/// <param name="response">An IRestResponse from a probe command</param>
-		private void parseProbeResponse(IRestResponse response)
+		private void ParseProbeResponse(IRestResponse response)
 		{
-			devices = new List<Device>();			
-			XDocument xDoc = XDocument.Load(new StringReader(response.Content));
-			foreach (var d in xDoc.Descendants().First(d => d.Name.LocalName == "Devices").Elements())
-			{
-				devices.Add(new Device(d));
-			}
-			FillDataItemRefList();
+         var xdoc = XDocument.Load(new StringReader(response.Content));
+         if (_devices.Any())
+            _devices.Clear();
 
-			probeCompleted = true;
+         _devices.AddRange(xdoc.Descendants()
+            .Where(d => d.Name.LocalName == "Devices")
+            .Take(1) // needed? 
+            .SelectMany(d => d.Elements())
+            .Select(d => new Device(d)));
+
+         BuildDataItemDictionary();
+
+			_probeCompleted = true;
+         _probeStarted = false;
 			ProbeCompletedHandler();			
 		}
 
 		/// <summary>
 		/// Loads DataItemRefList with all data items from all devices
 		/// </summary>
-		private void FillDataItemRefList()
+		private void BuildDataItemDictionary()
 		{
-			foreach (Device device in devices)
-			{
-				List<DataItem> dataItems = new List<DataItem>();
-				dataItems.AddRange(device.DataItems);
-				dataItems.AddRange(GetDataItems(device.Components));
-				foreach (var dataItem in dataItems)
-				{
-					dataItemsRef.Add(dataItem.id, dataItem);
-				}
-			}
+         _dataItemsDictionary = _devices.SelectMany(d =>
+            d.DataItems.Concat(GetAllDataItems(d.Components))
+         ).ToDictionary(i => i.Id, i => i);
 		}
 
 		/// <summary>
 		/// Recursive function to get DataItems list from a Component collection
 		/// </summary>
-		/// <param name="Components">Collection of Components</param>
+		/// <param name="components">Collection of Components</param>
 		/// <returns>Collection of DataItems from passed Component collection</returns>
-		private List<DataItem> GetDataItems(Component[] Components)
+		private static List<DataItem> GetAllDataItems(IReadOnlyList<Component> components)
 		{
+         var queue = new Queue<Component>(components);
 			var dataItems = new List<DataItem>();
-
-			foreach (var component in Components)
+			while(queue.Count > 0)
 			{
-				dataItems.AddRange(component.DataItems);
-				if (component.Components.Length > 0)
-				{
-					dataItems.AddRange(GetDataItems(component.Components));
-				}
+            var component = queue.Dequeue();
+            foreach (var c in component.Components)
+               queue.Enqueue(c);
+            dataItems.AddRange(component.DataItems);
 			}
 			return dataItems;
 		}
 
-		private void streamingTimer_Elapsed(object sender, ElapsedEventArgs e)
+		private void StreamingTimerElapsed(object sender, ElapsedEventArgs e)
 		{
-			var request = new RestRequest();
-			request.Resource = "sample";
-			request.AddParameter("at", lastSequence + 1);
-			restClient.ExecuteAsync(request, (r) => parseStream(r));
+         var request = new RestRequest
+         {
+            Resource = "sample"
+         };
+         request.AddParameter("at", _lastSequence + 1);
+			_restClient.ExecuteAsync(request, r => ParseStream(r));
 		}
 
 		/// <summary>
 		/// Parses response from a current or sample request, updates changed data items and fires events
 		/// </summary>
 		/// <param name="response">IRestResponse from the MTConnect request</param>
-		private void parseStream(IRestResponse response)
+		private void ParseStream(IRestResponse response)
 		{
-			String xmlContent = response.Content;
-			using (StringReader sr = new StringReader(xmlContent))
-			{
-				XDocument xDoc = XDocument.Load(sr);
+         using (StringReader sr = new StringReader(response.Content))
+         {
+            var xdoc = XDocument.Load(sr);
 
-				lastSequence = Convert.ToInt64(xDoc.Descendants().First(e => e.Name.LocalName == "Header").Attribute("lastSequence").Value);
+            _lastSequence = Convert.ToInt64(xdoc.Descendants().First(e => e.Name.LocalName == "Header")
+               .Attribute("lastSequence").Value);
 
-				if (xDoc.Descendants().Any(e => e.Attributes().Any(a => a.Name.LocalName == "dataItemId")))
-				{
-					IEnumerable<XElement> xmlDataItems = xDoc.Descendants()
-						.Where(e => e.Attributes().Any(a => a.Name.LocalName == "dataItemId"));
+            var xmlDataItems = xdoc.Descendants()
+               .Where(e => e.Attributes().Any(a => a.Name.LocalName == "dataItemId"));
+            if (xmlDataItems.Any())
+            {
+               var dataItems = xmlDataItems.Select(e => new {
+                  id = e.Attribute("dataItemId").Value,
+                  timestamp = DateTime.Parse(e.Attribute("timestamp").Value, null, 
+                     System.Globalization.DateTimeStyles.RoundtripKind),
+                  value = e.Value
+               })
+               .OrderBy(i => i.timestamp)
+               .ToList();
 
-					var dataItems = (from e in xmlDataItems
-									 select new
-									 {
-										 id = e.Attribute("dataItemId").Value,
-										 timestamp = DateTime.Parse(e.Attribute("timestamp").Value, null, System.Globalization.DateTimeStyles.RoundtripKind),
-										 value = e.Value
-									 }).ToList();
+               foreach (var item in dataItems)
+               {
+                  var dataItem = _dataItemsDictionary[item.id];
+                  var sample = new DataItemSample(item.value.ToString(), item.timestamp);
+                  dataItem.AddSample(sample);
+               }
+            }
+         }
+      }
 
-					foreach (var item in dataItems.OrderBy(i => i.timestamp))
-					{
-						var dataItem = dataItemsRef[item.id];
-						dataItem.AddSample(new DataItemSample(item.value.ToString(), item.timestamp));
-						DataItemChangedHandler(dataItemsRef[item.id]);
-					}
-					DataItemsChangedHandler();
-				}
-			}
-		}
-
-		private void ProbeCompletedHandler()
+      private void ProbeCompletedHandler()
 		{
-			var args = new EventArgs();
-			if (ProbeCompleted != null)
-			{
-				ProbeCompleted(this, args);
-			}
-		}
-
-		private void DataItemChangedHandler(DataItem dataItem)
-		{
-			var args = new DataItemChangedEventArgs(dataItem);
-			if (DataItemChanged != null)
-			{
-				DataItemChanged(this, args);
-			}
-		}
-
-		private void DataItemsChangedHandler()
-		{
-			var args = new EventArgs();
-			if (DataItemsChanged != null)
-			{
-				DataItemsChanged(this, args);
-			}
+			ProbeCompleted?.Invoke(this, new EventArgs());
 		}
 
 		/// <summary>
@@ -289,10 +255,7 @@ namespace MTConnectSharp
 		/// </summary>
 		public void Dispose()
 		{
-			if (streamingTimer != null)
-			{
-				streamingTimer.Dispose();
-			}
+			_streamingTimer?.Dispose();
 		}
 	}
 }

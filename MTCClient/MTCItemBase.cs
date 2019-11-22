@@ -1,36 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace MTConnectSharp
+﻿namespace MTConnectSharp
 {
-	/// <summary>
-	/// The base MTConnect Item Class
-	/// </summary>
-	[ComVisible(false)]
-	public abstract class MTCItemBase
+   /// <summary>
+   /// The base MTConnect Item Class
+   /// </summary>
+   public abstract class MTCItemBase
 	{
 		/// <summary>
 		/// Value of the id attribute
 		/// </summary>
-		public String id { get; internal set; }
+		public string Id { get; set; }
 
 		/// <summary>
 		/// Value of the name attribute
 		/// </summary>
-		public String Name { get; internal set; }
+		public string Name { get; set; }
 
 		/// <summary>
 		/// Name and id of the item as a formatted string
 		/// </summary>
-		public String LongName
+		public string LongName
 		{
 			get
 			{
-				return String.Format("{0}({1})", this.Name, this.id);
+				return $"{Name}({Id})";
 			}
 		}
 
@@ -41,7 +33,7 @@ namespace MTConnectSharp
 		{
 			try
 			{
-				return String.Format("{0}({1})", this.Name, this.id);
+				return $"{Name}({Id})";
 			}
 			catch
 			{

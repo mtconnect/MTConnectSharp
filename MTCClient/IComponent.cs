@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.ObjectModel;
+
 namespace MTConnectSharp
 {
-	public interface IComponent
+   public interface IComponent
 	{
-		Component[] Components { get; }
-		DataItem[] DataItems { get; }
-		String Type { get; }
-		String id { get; }
-		String Name { get; }
-		String LongName { get; }
+      ReadOnlyObservableCollection<Component> Components { get; }
+      ReadOnlyObservableCollection<DataItem> DataItems { get; }
+		string Type { get; }
+		string Id { get; }
+		string Name { get; }
+		string LongName { get; }
 	}
 }

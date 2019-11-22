@@ -1,4 +1,5 @@
 ﻿using System;
+
 namespace MTConnectSharp
 {
 	public interface IDataItemSample

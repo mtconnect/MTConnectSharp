@@ -1,87 +1,81 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace MTConnectSharp
 {
-	/// <summary>
-	/// Represents a device in the MTConnect probe response
-	/// </summary>
-	[ComVisible(true)]
-	[ClassInterface(ClassInterfaceType.None)]
-	public class Device : MTCItemBase, IDevice
+   /// <summary>
+   /// Represents a device in the MTConnect probe response
+   /// </summary>
+   public class Device : MTCItemBase, IDevice
 	{
-
 		/// <summary>
 		/// Description of the device
 		/// </summary>
-		public String Description { get; private set; }
+		public string Description { get; set; }
 
 		/// <summary>
 		/// Manufacturer of the device
 		/// </summary>
-		public String Manufacturer { get; private set; }
+		public string Manufacturer { get; set; }
 
 		/// <summary>
 		/// Serial number of the device
 		/// </summary>
-		public String SerialNumber { get; private set; }
+		public string SerialNumber { get; set; }
 
 		/// <summary>
 		/// The DataItems which are direct children of the device
 		/// </summary>
-		private List<DataItem> dataItems;
+		private ObservableCollection<DataItem> _dataItems = new ObservableCollection<DataItem>();
 
 		/// <summary>
 		/// The components which are direct children of the device
 		/// </summary>
-		private List<Component> components;
+		private ObservableCollection<Component> _components = new ObservableCollection<Component>();
 
 		/// <summary>
 		/// Array of the DataItems collection for COM Interop
 		/// </summary>
-		public DataItem[] DataItems
-		{ 
-			get
-			{
-				return dataItems.ToArray();	
-			}
+		public ReadOnlyObservableCollection<DataItem> DataItems
+		{
+         get;
+         private set;
 		}
 
 		/// <summary>
 		/// Array of the Components collection for COM Interop
 		/// </summary>
-		public Component[] Components
+		public ReadOnlyObservableCollection<Component> Components
 		{
-			get
-			{
-				return components.ToArray();
-			}
-		}
+         get;
+         private set;
+      }
 
-		/// <summary>
-		/// Creates a new device from an MTConnect XML device node
-		/// </summary>
-		/// <param name="xElem">The MTConnect XML node which defines the device</param>
-		internal Device(XElement xElem)
+      /// <summary>
+      /// Creates a new device from an MTConnect XML device node
+      /// </summary>
+      /// <param name="xElem">The MTConnect XML node which defines the device</param>
+      internal Device(XElement xElem = null)
 		{
-			if (xElem.Name.LocalName == "Device")
+         DataItems = new ReadOnlyObservableCollection<DataItem>(_dataItems);
+         Components = new ReadOnlyObservableCollection<Component>(_components);
+
+			if (xElem?.Name.LocalName == "Device")
 			{
 				// Populate basic fields
-				id = ParseUtility.GetAttribute(xElem, "id");
+				Id = ParseUtility.GetAttribute(xElem, "id");
 				Name = ParseUtility.GetAttribute(xElem, "name");
-				XElement desc = xElem.Descendants().First(x => x.Name.LocalName == "Description");
-				Description = desc.Value ?? String.Empty;
-				Manufacturer = ParseUtility.GetAttribute(desc, "manufacturer");
-				SerialNumber = ParseUtility.GetAttribute(desc, "serialNumber");
-				dataItems = ParseUtility.GetDataItems(xElem);
-				components = ParseUtility.GetComponents(xElem);
+
+            var descXml = xElem.Descendants().First(x => x.Name.LocalName == "Description");
+				Description = descXml.Value ?? string.Empty;
+				Manufacturer = ParseUtility.GetAttribute(descXml, "manufacturer");
+				SerialNumber = ParseUtility.GetAttribute(descXml, "serialNumber");
+
+				_dataItems.AddRange(ParseUtility.GetDataItems(xElem));
+				_components.AddRange(ParseUtility.GetComponents(xElem));
 			}
 		}
-
 	}
 }
